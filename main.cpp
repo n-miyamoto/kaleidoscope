@@ -317,6 +317,12 @@ static std::unique_ptr<FunctionAST> ParseDefinition(){
   return nullptr;
 
 }
+
+static std::unique_ptr<PrototypeAST> ParseExtern(){
+  getNextToken();
+  return ParsePrototype();
+}
+
 static void HandleDefinition() {
   if (ParseDefinition()) {
     fprintf(stderr, "Parsed a function definition.\n");
@@ -327,6 +333,11 @@ static void HandleDefinition() {
 }
 
 static void HandleExtern(){
+  if(ParseExtern()){
+    fprintf(stderr, "Parsed an extern\n");
+  }else{
+    getNextToken();
+  }
 
 }
 static void HandleTopLevelExpression(){
