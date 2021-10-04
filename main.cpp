@@ -342,7 +342,9 @@ static void HandleExtern(){
 }
 static void HandleTopLevelExpression(){
   if(ParseTopLevelExpr()){
-
+    fprintf(stderr, "Parsed a top-level expr\n");    
+  }else {
+    getNextToken();
   }
 }
 
