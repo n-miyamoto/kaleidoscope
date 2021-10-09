@@ -9,8 +9,6 @@ execute_process(COMMAND "llvm-config" "--libs"
         OUTPUT_VARIABLE LLVM_LIBS)
 string(REGEX REPLACE "[ \t]*[\r\n]+[ \t]*" "" LLVM_LIBS ${LLVM_LIBS})
 
-set(STATIC_LLVM_LIBRARIES "${LLVM_LIBS}")
-
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 message(STATUS "Using lib in: ${LLVM_LIBS}")
@@ -22,5 +20,4 @@ add_executable(kaleidoscope main.cpp)
 target_link_libraries(kaleidoscope ${LLVM_LIBS})
 target_link_libraries(kaleidoscope pthread)
 target_link_libraries(kaleidoscope ncurses)
-
 
