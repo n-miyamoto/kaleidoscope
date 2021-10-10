@@ -481,16 +481,26 @@ static void HandleDefinition() {
 }
 
 static void HandleExtern(){
-  if(ParseExtern()){
+  if(auto ProtoAST = ParseExtern()){
     fprintf(stderr, "Parsed an extern\n");
+    if(auto *FnIR = ProtoAST->codegen()){
+      fprintf(stderr, "Read function definition.\n");
+      FnIR->print(llvm::errs());
+      fprintf(stderr, "\n");
+    }
   }else{
     getNextToken();
   }
 
 }
 static void HandleTopLevelExpression(){
-  if(ParseTopLevelExpr()){
-    fprintf(stderr, "Parsed a top-level expr\n");    
+  if(auto FnAST = ParseTopLevelExpr()){
+    fprintf(stderr, "Parsed a top-level expr\n");
+    if(auto *FnIR = FnAST->codegen()){
+      fprintf(stderr, "Read function definition.\n");
+      FnIR->print(llvm::errs());
+      fprintf(stderr, "\n");
+    }
   }else {
     getNextToken();
   }
