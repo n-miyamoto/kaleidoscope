@@ -1,9 +1,10 @@
-#include <string>
 #include "lexer.hpp"
 
+#include <string>
+
 /******************************
-* Lexer
-*******************************/
+ * Lexer
+ *******************************/
 
 static Token CurTok;
 static int LastChar = ' ';
@@ -12,26 +13,24 @@ Token gettok() {
   Token tk;
 
   // Skip any whitespace.
-  while (isspace(LastChar))
-    LastChar = getchar();
+  while (isspace(LastChar)) LastChar = getchar();
 
-  if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
+  if (isalpha(LastChar)) {  // identifier: [a-zA-Z][a-zA-Z0-9]*
     tk.IdentifierStr = LastChar;
-    while (isalnum((LastChar = getchar())))
-      tk.IdentifierStr += LastChar;
+    while (isalnum((LastChar = getchar()))) tk.IdentifierStr += LastChar;
 
-    if (tk.IdentifierStr == "def"){
+    if (tk.IdentifierStr == "def") {
       tk.type = (int)tok_def;
-    } else if (tk.IdentifierStr == "extern"){
+    } else if (tk.IdentifierStr == "extern") {
       tk.type = (int)tok_extern;
-    }else{
+    } else {
       tk.type = (int)tok_identifier;
     }
-    
+
     return tk;
   }
 
-  if (isdigit(LastChar) || LastChar == '.') {   // Number: [0-9.]+
+  if (isdigit(LastChar) || LastChar == '.') {  // Number: [0-9.]+
     std::string NumStr;
     do {
       NumStr += LastChar;
@@ -43,8 +42,7 @@ Token gettok() {
     return tk;
   }
 
-  if (LastChar == '#')
-  {
+  if (LastChar == '#') {
     // Comment until end of line.
     do
       LastChar = getchar();
@@ -53,7 +51,7 @@ Token gettok() {
     if (LastChar != EOF) return gettok();
   }
   // Check for end of file.  Don't eat the EOF.
-  if (LastChar == EOF){
+  if (LastChar == EOF) {
     tk.type = (int)::tok_eof;
     return tk;
   }
@@ -70,7 +68,4 @@ int getNextToken() {
   return CurTok.type;
 }
 
-Token& getCurrentToken(){
-  return CurTok;
-}
-
+Token& getCurrentToken() { return CurTok; }
