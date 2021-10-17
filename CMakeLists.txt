@@ -21,7 +21,7 @@ message(STATUS "llvm sytem libs: ${LLVM_SYSTEM_LIBS}")
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-add_executable(kaleidoscope main.cpp)
+add_executable(kaleidoscope main.cpp lexer.cpp)
 target_link_libraries(kaleidoscope ${LLVM_LIBS})
 target_link_libraries(kaleidoscope ${LLVM_SYSTEM_LIBS})
 target_link_libraries(kaleidoscope ncurses)
