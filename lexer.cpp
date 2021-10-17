@@ -5,6 +5,7 @@
 * Lexer
 *******************************/
 
+static Token CurTok;
 static int LastChar = ' ';
 
 Token gettok() {
@@ -63,3 +64,13 @@ Token gettok() {
   tk.type = ThisChar;
   return tk;
 }
+
+int getNextToken() {
+  CurTok = gettok();
+  return CurTok.type;
+}
+
+Token& getCurrentToken(){
+  return CurTok;
+}
+

@@ -28,25 +28,17 @@
 /*
 global
 */
-static std::unique_ptr<llvm::LLVMContext> TheContext;
-static std::unique_ptr<llvm::IRBuilder<>> Builder;
-static std::unique_ptr<llvm::Module> TheModule;
-static std::map<std::string, llvm::Value *> NamedValues;
-static std::unique_ptr<llvm::legacy::FunctionPassManager>  TheFPM;
-static std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;
+static std::unique_ptr<llvm::LLVMContext> TheContext;//g
+static std::unique_ptr<llvm::IRBuilder<>> Builder;//g
+static std::map<std::string, llvm::Value *> NamedValues;//g
+static std::unique_ptr<llvm::legacy::FunctionPassManager>  TheFPM;//g
+static std::unique_ptr<llvm::Module> TheModule;//G
+static std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;//G
 static llvm::ExitOnError ExitOnErr;
 
 // LogError* - These are little helper functions for error handling.
 llvm::Value *LogErrorV(const char *Str);
 llvm::Function *getFunction(std::string Name);
-
-
-static Token CurTok;
-static int getNextToken() {
-  CurTok = gettok();
-  return CurTok.type;
-}
-
 
 /****************************** 
 * visitor for codegen
@@ -203,7 +195,7 @@ static std::unique_ptr<ExprAST> ParseExpression();
 
 // parse number expression 
 static std::unique_ptr<ExprAST> ParseNumberExpr(){
-  auto result = std::make_unique<NumberExprAST>(CurTok.NumVal);
+  auto result = std::make_unique<NumberExprAST>(getCurrentToken().NumVal);
   getNextToken();
   return std::move(result);
 }
@@ -213,34 +205,34 @@ static std::unique_ptr<ExprAST> ParseParenExpr(){
   auto v = ParseExpression();
   if(!v) return nullptr;
 
-  if (CurTok.type != ')') return LogError("expected ')'");
+  if (getCurrentToken().type != ')') return LogError("expected ')'");
   getNextToken();
 
   return v;
 }
 // parse Identifier expression
 static std::unique_ptr<ExprAST> ParseIdentifierExpr(){
-  std::string IdName = CurTok.IdentifierStr;
+  std::string IdName = getCurrentToken().IdentifierStr;
   
   getNextToken();
 
   // simple variable case
-  if(CurTok.type != '(') //not function. simple variable
+  if(getCurrentToken().type != '(') //not function. simple variable
     return std::make_unique<VariableExprAST>(IdName);
 
   // call faunction
   getNextToken();
   std::vector<std::unique_ptr<ExprAST>> Args;
-  if(CurTok.type != ')'){
+  if(getCurrentToken().type != ')'){
     while(1){
       if(auto Arg = ParseExpression())
         Args.push_back(std::move(Arg));
       else return nullptr;
 
-      if(CurTok.type == ')')
+      if(getCurrentToken().type == ')')
         break;
       
-      if(CurTok.type != ',')
+      if(getCurrentToken().type != ',')
         return LogError("Expected ')' or ',' in argument list");
       getNextToken();
     }
@@ -254,7 +246,7 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr(){
 // parse primary expression
 // identifier expression, number expression and parent expression
 static std::unique_ptr<ExprAST> ParsePrimary(){
-  switch (CurTok.type){
+  switch (getCurrentToken().type){
     default:
       return LogError("unknown token when expecting an expression");
     case (int)::tok_identifier:
@@ -271,11 +263,11 @@ static std::map<char, int> BinopPrecedence;
 
 /// GetTokPrecedence - Get the precedence of the pending binary operator token.
 static int GetTokPrecedence() {
-  if (!isascii(CurTok.type))
+  if (!isascii(getCurrentToken().type))
     return -1;
 
   // Make sure it's a declared binop.
-  int TokPrec = BinopPrecedence[CurTok.type];
+  int TokPrec = BinopPrecedence[getCurrentToken().type];
   if (TokPrec <= 0) return -1;
   return TokPrec;
 }
@@ -286,7 +278,7 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<Expr
 
     if( TokPrec < ExprPrec) return LHS;
 
-    int BinOp = CurTok.type;
+    int BinOp = getCurrentToken().type;
     getNextToken();
 
     auto RHS = ParsePrimary();
@@ -320,19 +312,19 @@ static std::unique_ptr<FunctionAST> ParseTopLevelExpr(){
 
 //Parse prototype
 static std::unique_ptr<PrototypeAST> ParsePrototype() {
-  if (CurTok.type != (int)::tok_identifier)
+  if (getCurrentToken().type != (int)::tok_identifier)
     return LogErrorP("Expected function name in prototype");
 
-  std::string FnName = CurTok.IdentifierStr;
+  std::string FnName = getCurrentToken().IdentifierStr;
   getNextToken();
 
-  if (CurTok.type != '(')
+  if (getCurrentToken().type != '(')
     return LogErrorP("Expected '(' in prototype");
 
   std::vector<std::string> ArgNames;
   while (getNextToken() == (int)::tok_identifier)
-    ArgNames.push_back(CurTok.IdentifierStr);
-  if (CurTok.type != ')')
+    ArgNames.push_back(getCurrentToken().IdentifierStr);
+  if (getCurrentToken().type != ')')
     return LogErrorP("Expected ')' in prototype");
 
   // success.
@@ -461,7 +453,7 @@ static void HandleTopLevelExpression(){
 static void MainLoop() {
   while(1){
     fprintf(stderr, "ready> ");
-    switch(CurTok.type){
+    switch(getCurrentToken().type){
     case (int)tok_eof:
       return;
     case ';':
@@ -613,7 +605,7 @@ int main(){
 
   //while(true){
   //  int token_id = gettok().type;
-  //  std::cout << "token_id: " << token_id << " str: " << CurTok.IdentifierStr << " val " << CurTok.NumVal << std::endl;
+  //  std::cout << "token_id: " << token_id << " str: " << getCurrentToken().IdentifierStr << " val " << CurTok.NumVal << std::endl;
   //}
 
   return 0;

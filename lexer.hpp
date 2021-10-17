@@ -23,3 +23,5 @@ struct Token{
 
 //return Token struct from std input.
 Token gettok();
+int getNextToken();
+Token& getCurrentToken();
