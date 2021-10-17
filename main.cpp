@@ -51,7 +51,6 @@ static int getNextToken() {
 /****************************** 
 * visitor for codegen
 *******************************/
-
 class ExprAST;
 class NumberExprAST;
 class VariableExprAST;
@@ -64,20 +63,19 @@ static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 class ExprAstVisitor{
 public:
-  virtual void Visit(NumberExprAST&);
-  virtual void Visit(VariableExprAST&);
-  virtual void Visit(BinaryExprAST&);
-  virtual void Visit(CallExprAST&);
-  //virtual void Visit(FunctionAST&);
+  virtual llvm::Value* Visit(NumberExprAST&);
+  virtual llvm::Value* Visit(VariableExprAST&);
+  virtual llvm::Value* Visit(BinaryExprAST&);
+  virtual llvm::Value* Visit(CallExprAST&);
   // .....
 };
 
 class CodeGenVisitor : public ExprAstVisitor{
 public:
-  virtual void Visit(NumberExprAST&);
-  virtual void Visit(VariableExprAST&);
-  virtual void Visit(BinaryExprAST&);
-  virtual void Visit(CallExprAST&);
+  virtual llvm::Value* Visit(NumberExprAST&);
+  virtual llvm::Value* Visit(VariableExprAST&);
+  virtual llvm::Value* Visit(BinaryExprAST&);
+  virtual llvm::Value* Visit(CallExprAST&);
   llvm::Function* Visit(PrototypeAST&);
   llvm::Function* Visit(FunctionAST&);
 };
@@ -92,116 +90,64 @@ class CodeGenVisitor codegen;
 class ExprAST{
 public:
   virtual ~ExprAST(){}
-  virtual llvm::Value *codegen() = 0;
-  virtual void Accept(ExprAstVisitor&) = 0;
+  virtual llvm::Value* Accept(ExprAstVisitor&) = 0;
 };
 
 // Expression class for numeric literals
 class NumberExprAST : public ExprAST {
-  double Val;
 public:
+  double Val;
   NumberExprAST(double Val) : Val(Val){}
-  virtual llvm::Value *codegen();
-  virtual void Accept(ExprAstVisitor&);
+  virtual llvm::Value* Accept(ExprAstVisitor&);
 };
 
-llvm::Value *NumberExprAST::codegen() {
-  return llvm::ConstantFP::get(*TheContext, llvm::APFloat(Val));
-}
-
-void NumberExprAST::Accept(ExprAstVisitor& v){
-  v.Visit(*this);
+llvm::Value* NumberExprAST::Accept(ExprAstVisitor& v){
+  return v.Visit(*this);
 }
 
 // Expression class for referencing a variable 
 class VariableExprAST : public ExprAST {
-  std::string Name;
 public:
+  std::string Name;
   VariableExprAST(const std::string &Name) : Name(Name){}
-  virtual llvm::Value *codegen();
-  virtual void Accept(ExprAstVisitor&);
+  virtual llvm::Value* Accept(ExprAstVisitor&);
 };
 
-llvm::Value *VariableExprAST::codegen() {
-  // Look this variable up in the function.
-  llvm::Value *V = NamedValues[Name];
-  if (!V)
-    LogErrorV("Unknown variable name");
-  return V;
-}
-
-void VariableExprAST::Accept(ExprAstVisitor& v){
-  v.Visit(*this);
+llvm::Value* VariableExprAST::Accept(ExprAstVisitor& v){
+  return v.Visit(*this);
 }
 
 // Expression class for a binary operator
 class BinaryExprAST : public ExprAST{
+public:
   char Op;
   std::unique_ptr<ExprAST> LHS, RHS;
-  virtual llvm::Value *codegen();
-  virtual void Accept(ExprAstVisitor&);
+  virtual llvm::Value* Accept(ExprAstVisitor&);
 
-public:
   BinaryExprAST(char op, std::unique_ptr<ExprAST> LHS,
                 std::unique_ptr<ExprAST> RHS)
     : Op(op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
 };
-llvm::Value *BinaryExprAST::codegen() {
-  llvm::Value *L = LHS->codegen();
-  llvm::Value *R = RHS->codegen();
-  if (!L || !R)
-    return nullptr;
 
-  switch (Op) {
-  case '+':
-    return Builder->CreateFAdd(L, R, "addtmp");
-  case '-':
-    return Builder->CreateFSub(L, R, "subtmp");
-  case '*':
-    return Builder->CreateFMul(L, R, "multmp");
-  case '<':
-    L = Builder->CreateFCmpULT(L, R, "cmptmp");
-    // Convert bool 0/1 to double 0.0 or 1.0
-    return Builder->CreateUIToFP(L, llvm::Type::getDoubleTy(*TheContext),
-                                "booltmp");
-  default:
-    return LogErrorV("invalid binary operator");
-  }
-}
 
-void BinaryExprAST::Accept(ExprAstVisitor& v){
-  v.Visit(*this);
+llvm::Value* BinaryExprAST::Accept(ExprAstVisitor& v){
+  return v.Visit(*this);
 }
 
 // Expression class for function calls.
 class CallExprAST : public ExprAST {
+public:
   std::string Callee;
   std::vector<std::unique_ptr<ExprAST>> Args;
-  virtual llvm::Value *codegen();
-  virtual void Accept(ExprAstVisitor&);
+  virtual llvm::Value* Accept(ExprAstVisitor&);
 
-public:
   CallExprAST(const std::string &Callee,
               std::vector<std::unique_ptr<ExprAST>> Args)
     : Callee(Callee), Args(std::move(Args)) {}
 };
 
-llvm::Value *CallExprAST::codegen(){
-  llvm::Function *CalleeF = getFunction(Callee);
-  //llvm::Function *CalleeF = TheModule-> getFunction(Callee);
-  if(!CalleeF) return LogErrorV("Unknown function referenced");
-  if(CalleeF->arg_size() != Args.size()) return LogErrorV("Incorrect #arguments passed");
-
-  std::vector<llvm::Value*> ArgsV; 
-  for(unsigned i=0, e=Args.size(); i !=e; i++){
-    ArgsV.push_back( Args[i]->codegen() );
-    if (!ArgsV.back()) return nullptr;
-  }
-  return Builder->CreateCall(CalleeF, ArgsV, "calltmp");
-}
-
-void CallExprAST::Accept(ExprAstVisitor& v){
-  v.Visit(*this);
+llvm::Value* CallExprAST::Accept(ExprAstVisitor& v){
+  return v.Visit(*this);
 }
 
 // This class represents the "prototype" for a function,
@@ -212,31 +158,12 @@ public:
   std::string Name;
   std::vector<std::string> Args;
 
-  llvm::Function *codegen();
   llvm::Function *Accept(CodeGenVisitor&);
   PrototypeAST(const std::string &name, std::vector<std::string> Args)
     : Name(name), Args(std::move(Args)) {}
 
   const std::string &getName() const { return Name; }
 };
-
-llvm::Function *PrototypeAST::codegen(){
-
-  std::vector<llvm::Type*>  Doubles(Args.size(),llvm::Type::getDoubleTy(*TheContext));
-
-  llvm::FunctionType *FT = 
-    llvm::FunctionType::get(llvm::Type::getDoubleTy(*TheContext), Doubles, false);
-
-  llvm::Function *F =
-    llvm::Function::Create(FT, llvm::Function::ExternalLinkage, Name, TheModule.get());
-
-  unsigned Idx = 0;
-  for(auto &Arg : F->args()){
-    Arg.setName(Args[Idx++]);
-  }
-
-  return F;
-}
 
 llvm::Function *PrototypeAST::Accept(CodeGenVisitor &v){
   return v.Visit(*this);
@@ -247,7 +174,6 @@ class FunctionAST {
 public:
   std::unique_ptr<ExprAST> Body;
   std::unique_ptr<PrototypeAST> Proto;
-  llvm::Function *codegen();
   llvm::Function *Accept(CodeGenVisitor&);
   FunctionAST(std::unique_ptr<PrototypeAST> Proto,
               std::unique_ptr<ExprAST> Body)
@@ -256,46 +182,6 @@ public:
 
 llvm::Function *FunctionAST::Accept(CodeGenVisitor &v){
   return v.Visit(*this);
-}
-
-//static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
-
-llvm::Function *FunctionAST::codegen() {
-  auto &P = *Proto;
-  FunctionProtos[Proto->getName()] = std::move(Proto);
-  llvm::Function *TheFunction = getFunction(P.getName());
-  if (!TheFunction)
-    return nullptr;
-
-  if(!TheFunction)
-    TheFunction = Proto->codegen();
-
-  if(!TheFunction)
-    return nullptr;
-
-  if(!TheFunction->empty())
-    return (llvm::Function*) LogErrorV("Function cannot be redefined.");
-
-  llvm::BasicBlock *BB = llvm::BasicBlock::Create(*TheContext, "entry", TheFunction);
-  Builder->SetInsertPoint(BB);
-
-  NamedValues.clear();
-  for (auto &arg: TheFunction->args()){
-    NamedValues[arg.getName()] = &arg;
-  }
-
-    
-  if(llvm::Value *RetVal = Body->codegen()){
-    Builder->CreateRet(RetVal);
-    llvm::verifyFunction(*TheFunction);
-
-    // Optimize the function.
-    TheFPM->run(*TheFunction);
-    return TheFunction;
-  }
-
-  TheFunction->eraseFromParent();
-  return nullptr;
 }
 
 // LogError* - These are little helper functions for error handling.
@@ -380,8 +266,7 @@ static std::unique_ptr<ExprAST> ParsePrimary(){
   }
 }
 
-/// BinopPrecedence - This holds the precedence for each binary operator that is
-/// defined.
+/// BinopPrecedence - This holds the precedence for each binary operator that is defined.
 static std::map<char, int> BinopPrecedence;
 
 /// GetTokPrecedence - Get the precedence of the pending binary operator token.
@@ -482,7 +367,8 @@ llvm::Function *getFunction(std::string Name) {
   // prototype.
   auto FI = FunctionProtos.find(Name);
   if (FI != FunctionProtos.end())
-    return FI->second->codegen();
+    //return FI->second->codegen();
+    return FI->second->Accept(codegen);
 
   // If no existing prototype exists, return null.
   return nullptr;
@@ -512,7 +398,8 @@ static void InitializeModuleAndPassManager() {
 static void HandleDefinition() {
   if (auto FnAst = ParseDefinition()) {
     fprintf(stderr, "Parsed a function definition.\n");
-    if(auto *FnIR = FnAst->codegen()){
+    //if(auto *FnIR = FnAst->codegen()){
+    if(auto *FnIR = FnAst->Accept(codegen) ){
       fprintf(stderr, "Read function definition.\n");
       FnIR->print(llvm::errs());
       fprintf(stderr, "\n");
@@ -529,7 +416,8 @@ static void HandleDefinition() {
 static void HandleExtern(){
   if(auto ProtoAST = ParseExtern()){
     fprintf(stderr, "Parsed an extern\n");
-    if(auto *FnIR = ProtoAST->codegen()){
+    //if(auto *FnIR = ProtoAST->codegen()){
+    if(auto *FnIR = ProtoAST->Accept(codegen)){
       fprintf(stderr, "Read function definition.\n");
       FnIR->print(llvm::errs());
       FunctionProtos[ProtoAST->getName()] = std::move(ProtoAST);
@@ -638,7 +526,8 @@ llvm::Function* CodeGenVisitor::Visit(FunctionAST& f){
   }
 
     
-  if(llvm::Value *RetVal = f.Body->codegen()){
+  //if(llvm::Value *RetVal = f.Body->codegen()){
+  if(llvm::Value *RetVal = f.Body->Accept(*this)){
     Builder->CreateRet(RetVal);
     llvm::verifyFunction(*TheFunction);
 
@@ -651,17 +540,54 @@ llvm::Function* CodeGenVisitor::Visit(FunctionAST& f){
   return nullptr;
 }
 
-void CodeGenVisitor::Visit(NumberExprAST&){
-  //TODO
+llvm::Value* CodeGenVisitor::Visit(NumberExprAST& n){
+  return llvm::ConstantFP::get(*TheContext, llvm::APFloat(n.Val));
 }
-void CodeGenVisitor::Visit(VariableExprAST&){
-  //TODO
+llvm::Value* CodeGenVisitor::Visit(VariableExprAST& v){
+  // Look this variable up in the function.
+  llvm::Value *V = NamedValues[v.Name];
+  if (!V)
+    LogErrorV("Unknown variable name");
+  return V;
 }
-void CodeGenVisitor::Visit(BinaryExprAST&){
-  //TODO
+
+llvm::Value* CodeGenVisitor::Visit(BinaryExprAST& b){
+  //llvm::Value *L = b.LHS->codegen();
+  llvm::Value *L = b.LHS->Accept(*this);
+  //llvm::Value *R = b.RHS->codegen();
+  llvm::Value *R = b.RHS->Accept(*this);
+  if (!L || !R)
+    return nullptr;
+
+  switch (b.Op) {
+  case '+':
+    return Builder->CreateFAdd(L, R, "addtmp");
+  case '-':
+    return Builder->CreateFSub(L, R, "subtmp");
+  case '*':
+    return Builder->CreateFMul(L, R, "multmp");
+  case '<':
+    L = Builder->CreateFCmpULT(L, R, "cmptmp");
+    // Convert bool 0/1 to double 0.0 or 1.0
+    return Builder->CreateUIToFP(L, llvm::Type::getDoubleTy(*TheContext),
+                                "booltmp");
+  default:
+    return LogErrorV("invalid binary operator");
+  }
 }
-void CodeGenVisitor::Visit(CallExprAST&){
-  //TODO
+llvm::Value* CodeGenVisitor::Visit(CallExprAST& c){
+  llvm::Function *CalleeF = getFunction(c.Callee);
+  //llvm::Function *CalleeF = TheModule-> getFunction(Callee);
+  if(!CalleeF) return LogErrorV("Unknown function referenced");
+  if(CalleeF->arg_size() != c.Args.size()) return LogErrorV("Incorrect #arguments passed");
+
+  std::vector<llvm::Value*> ArgsV; 
+  for(unsigned i=0, e=c.Args.size(); i !=e; i++){
+    //ArgsV.push_back( c.Args[i]->codegen() );
+    ArgsV.push_back( c.Args[i]->Accept(*this) );
+    if (!ArgsV.back()) return nullptr;
+  }
+  return Builder->CreateCall(CalleeF, ArgsV, "calltmp");
 }
 
 int main(){
