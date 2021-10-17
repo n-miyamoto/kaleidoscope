@@ -45,7 +45,7 @@ llvm::Function *getFunction(std::string Name);
 
 // The lexer returns tokens [0-255] if it is an unknown character, otherwise one
 // of these for known things.
-enum Token {
+enum TokenType {
   tok_eof = -1,
 
   // commands
@@ -57,27 +57,34 @@ enum Token {
   tok_number = -5,
 };
 
-static std::string IdentifierStr; // Filled in if tok_identifier
-static double NumVal;             // Filled in if tok_number
+struct Token{
+  int type;
+  std::string IdentifierStr; // Filled in if tok_identifier
+  double NumVal;             // Filled in if tok_number
+};
 
-static int gettok() {
+Token gettok() {
   static int LastChar = ' ';
+  Token tk;
 
   // Skip any whitespace.
   while (isspace(LastChar))
     LastChar = getchar();
 
   if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
-    IdentifierStr = LastChar;
+    tk.IdentifierStr = LastChar;
     while (isalnum((LastChar = getchar())))
-      IdentifierStr += LastChar;
+      tk.IdentifierStr += LastChar;
 
-    if (IdentifierStr == "def")
-      return tok_def;
-    if (IdentifierStr == "extern")
-      return tok_extern;
+    if (tk.IdentifierStr == "def"){
+      tk.type = (int)tok_def;
+    } else if (tk.IdentifierStr == "extern"){
+      tk.type = (int)tok_extern;
+    }else{
+      tk.type = (int)tok_identifier;
+    }
     
-    return tok_identifier;
+    return tk;
   }
 
   if (isdigit(LastChar) || LastChar == '.') {   // Number: [0-9.]+
@@ -87,8 +94,9 @@ static int gettok() {
       LastChar = getchar();
     } while (isdigit(LastChar) || LastChar == '.');
 
-    NumVal = strtod(NumStr.c_str(), 0);
-    return tok_number;
+    tk.NumVal = strtod(NumStr.c_str(), 0);
+    tk.type = (int)::tok_number;
+    return tk;
   }
 
   if (LastChar == '#')
@@ -98,22 +106,25 @@ static int gettok() {
       LastChar = getchar();
     while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
 
-    if (LastChar != EOF)
-      return gettok();
+    if (LastChar != EOF) return gettok();
   }
   // Check for end of file.  Don't eat the EOF.
-  if (LastChar == EOF)
-    return tok_eof;
+  if (LastChar == EOF){
+    tk.type = (int)::tok_eof;
+    return tk;
+  }
 
   // Otherwise, just return the character as its ascii value.
   int ThisChar = LastChar;
   LastChar = getchar();
-  return ThisChar;
+  tk.type = ThisChar;
+  return tk;
 }
 
-static int CurTok;
+static Token CurTok;
 static int getNextToken() {
-  return CurTok = gettok();
+  CurTok = gettok();
+  return CurTok.type;
 }
 
 /****************************** 
@@ -322,7 +333,7 @@ static std::unique_ptr<ExprAST> ParseExpression();
 
 // parse number expression 
 static std::unique_ptr<ExprAST> ParseNumberExpr(){
-  auto result = std::make_unique<NumberExprAST>(NumVal);
+  auto result = std::make_unique<NumberExprAST>(CurTok.NumVal);
   getNextToken();
   return std::move(result);
 }
@@ -332,34 +343,34 @@ static std::unique_ptr<ExprAST> ParseParenExpr(){
   auto v = ParseExpression();
   if(!v) return nullptr;
 
-  if (CurTok != ')') return LogError("expected ')'");
+  if (CurTok.type != ')') return LogError("expected ')'");
   getNextToken();
 
   return v;
 }
 // parse Identifier expression
 static std::unique_ptr<ExprAST> ParseIdentifierExpr(){
-  std::string IdName = IdentifierStr;
+  std::string IdName = CurTok.IdentifierStr;
   
   getNextToken();
 
   // simple variable case
-  if(CurTok != '(') //not function. simple variable
+  if(CurTok.type != '(') //not function. simple variable
     return std::make_unique<VariableExprAST>(IdName);
 
   // call faunction
   getNextToken();
   std::vector<std::unique_ptr<ExprAST>> Args;
-  if(CurTok != ')'){
+  if(CurTok.type != ')'){
     while(1){
       if(auto Arg = ParseExpression())
         Args.push_back(std::move(Arg));
       else return nullptr;
 
-      if(CurTok == ')')
+      if(CurTok.type == ')')
         break;
       
-      if(CurTok != ',')
+      if(CurTok.type != ',')
         return LogError("Expected ')' or ',' in argument list");
       getNextToken();
     }
@@ -373,12 +384,12 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr(){
 // parse primary expression
 // identifier expression, number expression and parent expression
 static std::unique_ptr<ExprAST> ParsePrimary(){
-  switch (CurTok){
+  switch (CurTok.type){
     default:
       return LogError("unknown token when expecting an expression");
-    case tok_identifier:
+    case (int)::tok_identifier:
       return ParseIdentifierExpr();
-    case tok_number:
+    case (int)::tok_number:
       return ParseNumberExpr();
     case '(':
       return ParseParenExpr();
@@ -391,11 +402,11 @@ static std::map<char, int> BinopPrecedence;
 
 /// GetTokPrecedence - Get the precedence of the pending binary operator token.
 static int GetTokPrecedence() {
-  if (!isascii(CurTok))
+  if (!isascii(CurTok.type))
     return -1;
 
   // Make sure it's a declared binop.
-  int TokPrec = BinopPrecedence[CurTok];
+  int TokPrec = BinopPrecedence[CurTok.type];
   if (TokPrec <= 0) return -1;
   return TokPrec;
 }
@@ -406,7 +417,7 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<Expr
 
     if( TokPrec < ExprPrec) return LHS;
 
-    int BinOp = CurTok;
+    int BinOp = CurTok.type;
     getNextToken();
 
     auto RHS = ParsePrimary();
@@ -440,19 +451,19 @@ static std::unique_ptr<FunctionAST> ParseTopLevelExpr(){
 
 //Parse prototype
 static std::unique_ptr<PrototypeAST> ParsePrototype() {
-  if (CurTok != tok_identifier)
+  if (CurTok.type != (int)::tok_identifier)
     return LogErrorP("Expected function name in prototype");
 
-  std::string FnName = IdentifierStr;
+  std::string FnName = CurTok.IdentifierStr;
   getNextToken();
 
-  if (CurTok != '(')
+  if (CurTok.type != '(')
     return LogErrorP("Expected '(' in prototype");
 
   std::vector<std::string> ArgNames;
-  while (getNextToken() == tok_identifier)
-    ArgNames.push_back(IdentifierStr);
-  if (CurTok != ')')
+  while (getNextToken() == (int)::tok_identifier)
+    ArgNames.push_back(CurTok.IdentifierStr);
+  if (CurTok.type != ')')
     return LogErrorP("Expected ')' in prototype");
 
   // success.
@@ -577,16 +588,16 @@ static void HandleTopLevelExpression(){
 static void MainLoop() {
   while(1){
     fprintf(stderr, "ready> ");
-    switch(CurTok){
-    case tok_eof:
+    switch(CurTok.type){
+    case (int)tok_eof:
       return;
     case ';':
       getNextToken();
       break;
-    case tok_def:
+    case (int)tok_def:
       HandleDefinition();
       break;
-    case tok_extern:
+    case (int)tok_extern:
       HandleExtern();
       break;
     default:
@@ -617,8 +628,8 @@ int main(){
   MainLoop();
 
   while(true){
-    int token_id = gettok();
-    std::cout << "token_id: " << token_id << " str: " << IdentifierStr << " val " << NumVal << std::endl;
+    int token_id = gettok().type;
+    std::cout << "token_id: " << token_id << " str: " << CurTok.IdentifierStr << " val " << CurTok.NumVal << std::endl;
   }
 
   return 0;
