@@ -1,14 +1,13 @@
-#pragma once 
+#pragma once
 
 #include <map>
 #include <string>
 
+#include "KaleidoscopeJIT.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
-
-#include "KaleidoscopeJIT.h"
 
 class ExprAST;
 class NumberExprAST;
@@ -18,14 +17,13 @@ class CallExprAST;
 class FunctionAST;
 class PrototypeAST;
 
-
-
 class CodeGenVisitor {
   std::unique_ptr<llvm::IRBuilder<>> Builder;
-  std::map<std::string, llvm::Value *> NamedValues;
-  std::unique_ptr<llvm::legacy::FunctionPassManager>  TheFPM;
+  std::map<std::string, llvm::Value*> NamedValues;
+  std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
   std::unique_ptr<llvm::LLVMContext> TheContext;
-public:
+
+ public:
   CodeGenVisitor();
   void InitializeModuleAndPassManager();
 
@@ -39,8 +37,8 @@ public:
   llvm::Function* Visit(PrototypeAST&);
   llvm::Function* Visit(FunctionAST&);
 
-  llvm::Function *getFunction(std::string);
+  llvm::Function* getFunction(std::string);
 };
 
-std::unique_ptr<ExprAST> LogError(const char *Str);
-std::unique_ptr<PrototypeAST> LogErrorP(const char *Str);
+std::unique_ptr<ExprAST> LogError(const char* Str);
+std::unique_ptr<PrototypeAST> LogErrorP(const char* Str);
