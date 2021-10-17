@@ -1,180 +1,19 @@
-#include <string>
 #include <iostream>
 #include <memory>
 #include <vector>
 #include <map>
 
-#include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
-#include "llvm/IR/Verifier.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/InstCombine/InstCombine.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Scalar/GVN.h"
-
-#include "KaleidoscopeJIT.h"
 #include "lexer.hpp"
+#include "codegen.hpp"
+#include "expressions.hpp"
 
-/*
-global
-*/
-static std::unique_ptr<llvm::LLVMContext> TheContext;//g
-static std::unique_ptr<llvm::IRBuilder<>> Builder;//g
-static std::map<std::string, llvm::Value *> NamedValues;//g
-static std::unique_ptr<llvm::legacy::FunctionPassManager>  TheFPM;//g
-static std::unique_ptr<llvm::Module> TheModule;//G
-static std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;//G
-static llvm::ExitOnError ExitOnErr;
-
-// LogError* - These are little helper functions for error handling.
-llvm::Value *LogErrorV(const char *Str);
-llvm::Function *getFunction(std::string Name);
 
 /****************************** 
-* visitor for codegen
+* global
 *******************************/
-class ExprAST;
-class NumberExprAST;
-class VariableExprAST;
-class BinaryExprAST;
-class CallExprAST;
-class FunctionAST;
-class PrototypeAST;
-
-static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
-
-class ExprAstVisitor{
-public:
-  virtual llvm::Value* Visit(NumberExprAST&);
-  virtual llvm::Value* Visit(VariableExprAST&);
-  virtual llvm::Value* Visit(BinaryExprAST&);
-  virtual llvm::Value* Visit(CallExprAST&);
-  // .....
-};
-
-class CodeGenVisitor : public ExprAstVisitor{
-public:
-  virtual llvm::Value* Visit(NumberExprAST&);
-  virtual llvm::Value* Visit(VariableExprAST&);
-  virtual llvm::Value* Visit(BinaryExprAST&);
-  virtual llvm::Value* Visit(CallExprAST&);
-  llvm::Function* Visit(PrototypeAST&);
-  llvm::Function* Visit(FunctionAST&);
-};
-
+/// BinopPrecedence - This holds the precedence for each binary operator that is defined.
+static std::map<char, int> BinopPrecedence;
 class CodeGenVisitor codegen;
-
-
-/****************************** 
-* Parser
-*******************************/
-// Base class for all expression
-class ExprAST{
-public:
-  virtual ~ExprAST(){}
-  virtual llvm::Value* Accept(ExprAstVisitor&) = 0;
-};
-
-// Expression class for numeric literals
-class NumberExprAST : public ExprAST {
-public:
-  double Val;
-  NumberExprAST(double Val) : Val(Val){}
-  virtual llvm::Value* Accept(ExprAstVisitor&);
-};
-
-llvm::Value* NumberExprAST::Accept(ExprAstVisitor& v){
-  return v.Visit(*this);
-}
-
-// Expression class for referencing a variable 
-class VariableExprAST : public ExprAST {
-public:
-  std::string Name;
-  VariableExprAST(const std::string &Name) : Name(Name){}
-  virtual llvm::Value* Accept(ExprAstVisitor&);
-};
-
-llvm::Value* VariableExprAST::Accept(ExprAstVisitor& v){
-  return v.Visit(*this);
-}
-
-// Expression class for a binary operator
-class BinaryExprAST : public ExprAST{
-public:
-  char Op;
-  std::unique_ptr<ExprAST> LHS, RHS;
-  virtual llvm::Value* Accept(ExprAstVisitor&);
-
-  BinaryExprAST(char op, std::unique_ptr<ExprAST> LHS,
-                std::unique_ptr<ExprAST> RHS)
-    : Op(op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
-};
-
-
-llvm::Value* BinaryExprAST::Accept(ExprAstVisitor& v){
-  return v.Visit(*this);
-}
-
-// Expression class for function calls.
-class CallExprAST : public ExprAST {
-public:
-  std::string Callee;
-  std::vector<std::unique_ptr<ExprAST>> Args;
-  virtual llvm::Value* Accept(ExprAstVisitor&);
-
-  CallExprAST(const std::string &Callee,
-              std::vector<std::unique_ptr<ExprAST>> Args)
-    : Callee(Callee), Args(std::move(Args)) {}
-};
-
-llvm::Value* CallExprAST::Accept(ExprAstVisitor& v){
-  return v.Visit(*this);
-}
-
-// This class represents the "prototype" for a function,
-// which captures its name, and its argument names (thus implicitly the number
-// of arguments the function takes).
-class PrototypeAST {
-public:
-  std::string Name;
-  std::vector<std::string> Args;
-
-  llvm::Function *Accept(CodeGenVisitor&);
-  PrototypeAST(const std::string &name, std::vector<std::string> Args)
-    : Name(name), Args(std::move(Args)) {}
-
-  const std::string &getName() const { return Name; }
-};
-
-llvm::Function *PrototypeAST::Accept(CodeGenVisitor &v){
-  return v.Visit(*this);
-}
-
-// This class represents a function definition itself.
-class FunctionAST {
-public:
-  std::unique_ptr<ExprAST> Body;
-  std::unique_ptr<PrototypeAST> Proto;
-  llvm::Function *Accept(CodeGenVisitor&);
-  FunctionAST(std::unique_ptr<PrototypeAST> Proto,
-              std::unique_ptr<ExprAST> Body)
-    : Proto(std::move(Proto)), Body(std::move(Body)) {}
-};
-
-llvm::Function *FunctionAST::Accept(CodeGenVisitor &v){
-  return v.Visit(*this);
-}
 
 // LogError* - These are little helper functions for error handling.
 std::unique_ptr<ExprAST> LogError(const char *Str) {
@@ -186,11 +25,10 @@ std::unique_ptr<PrototypeAST> LogErrorP(const char *Str) {
   return nullptr;
 }
 
-llvm::Value *LogErrorV(const char *Str) {
-  LogError(Str);
-  return nullptr;
-}
 
+/****************************** 
+* Parser
+*******************************/
 static std::unique_ptr<ExprAST> ParseExpression();
 
 // parse number expression 
@@ -258,8 +96,6 @@ static std::unique_ptr<ExprAST> ParsePrimary(){
   }
 }
 
-/// BinopPrecedence - This holds the precedence for each binary operator that is defined.
-static std::map<char, int> BinopPrecedence;
 
 /// GetTokPrecedence - Get the precedence of the pending binary operator token.
 static int GetTokPrecedence() {
@@ -350,41 +186,6 @@ static std::unique_ptr<PrototypeAST> ParseExtern(){
   return ParsePrototype();
 }
 
-llvm::Function *getFunction(std::string Name) {
-  // First, see if the function has already been added to the current module.
-  if (auto *F = TheModule->getFunction(Name))
-    return F;
-
-  // If not, check whether we can codegen the declaration from some existing
-  // prototype.
-  auto FI = FunctionProtos.find(Name);
-  if (FI != FunctionProtos.end())
-    //return FI->second->codegen();
-    return FI->second->Accept(codegen);
-
-  // If no existing prototype exists, return null.
-  return nullptr;
-}
-
-static void InitializeModuleAndPassManager() {
-  // Open a new context and module.
-  TheContext = std::make_unique<llvm::LLVMContext>();
-  TheModule = std::make_unique<llvm::Module>("my cool jit", *TheContext);
-  TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
-
-  //Create a new pass manager
-  TheFPM = std::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get());
-  //add pathe
-  TheFPM->add(llvm::createInstructionCombiningPass());
-  TheFPM->add(llvm::createReassociatePass());
-  TheFPM->add(llvm::createGVNPass());
-  TheFPM->add(llvm::createCFGSimplificationPass());
-
-  TheFPM->doInitialization();
-
-  // Create a new builder for the module.
-  Builder = std::make_unique<llvm::IRBuilder<>>(*TheContext);
-}
 
 
 static void HandleDefinition() {
@@ -396,8 +197,8 @@ static void HandleDefinition() {
       FnIR->print(llvm::errs());
       fprintf(stderr, "\n");
 
-      TheJIT->addModule(std::move(TheModule));
-      InitializeModuleAndPassManager();
+      codegen.TheJIT->addModule(std::move(codegen.TheModule));
+      codegen.InitializeModuleAndPassManager();
     }
   } else {
     // Skip token for error recovery.
@@ -412,7 +213,7 @@ static void HandleExtern(){
     if(auto *FnIR = ProtoAST->Accept(codegen)){
       fprintf(stderr, "Read function definition.\n");
       FnIR->print(llvm::errs());
-      FunctionProtos[ProtoAST->getName()] = std::move(ProtoAST);
+      codegen.FunctionProtos[ProtoAST->getName()] = std::move(ProtoAST);
     }
   }else{
     getNextToken();
@@ -428,10 +229,10 @@ static void HandleTopLevelExpression(){
       fprintf(stderr, "Read function definition.\n");
       FnIR->print(llvm::errs());
 
-      auto H = TheJIT->addModule(std::move(TheModule));
-      InitializeModuleAndPassManager();
+      auto H = codegen.TheJIT->addModule(std::move(codegen.TheModule));
+      codegen.InitializeModuleAndPassManager();
 
-      auto ExprSymbol = TheJIT->findSymbol("__anon_expr");
+      auto ExprSymbol = codegen.TheJIT->findSymbol("__anon_expr");
       assert(ExprSymbol && "function not found");
 
       auto e = ExprSymbol.getAddress();
@@ -443,7 +244,7 @@ static void HandleTopLevelExpression(){
       double (*FP)() = (double (*)())(intptr_t)e.get();
       fprintf(stderr, "Evaluated to %f\n", FP());
 
-      TheJIT->removeModule(H);
+      codegen.TheJIT->removeModule(H);
     }
   }else {
     getNextToken();
@@ -472,121 +273,7 @@ static void MainLoop() {
   }
 }
 
-
-
-llvm::Function* CodeGenVisitor::Visit(PrototypeAST& p){
-  std::vector<llvm::Type*>  Doubles(p.Args.size(),llvm::Type::getDoubleTy(*TheContext));
-
-  llvm::FunctionType *FT = 
-    llvm::FunctionType::get(llvm::Type::getDoubleTy(*TheContext), Doubles, false);
-
-  llvm::Function *F =
-    llvm::Function::Create(FT, llvm::Function::ExternalLinkage, p.Name, TheModule.get());
-
-  unsigned Idx = 0;
-  for(auto &Arg : F->args()){
-    Arg.setName(p.Args[Idx++]);
-  }
-
-  return F;
-}
-
-//code gen impl
-llvm::Function* CodeGenVisitor::Visit(FunctionAST& f){
-  auto &P = *(f.Proto);
-  FunctionProtos[f.Proto->getName()] = std::move(f.Proto);
-  llvm::Function *TheFunction = getFunction(P.getName());
-  if (!TheFunction)
-    return nullptr;
-
-  if(!TheFunction)
-    //TheFunction = f.Proto->codegen();
-    TheFunction = f.Accept(*this);
-
-  if(!TheFunction)
-    return nullptr;
-
-  if(!TheFunction->empty())
-    return (llvm::Function*) LogErrorV("Function cannot be redefined.");
-
-  llvm::BasicBlock *BB = llvm::BasicBlock::Create(*TheContext, "entry", TheFunction);
-  Builder->SetInsertPoint(BB);
-
-  NamedValues.clear();
-  for (auto &arg: TheFunction->args()){
-    NamedValues[arg.getName()] = &arg;
-  }
-
-    
-  //if(llvm::Value *RetVal = f.Body->codegen()){
-  if(llvm::Value *RetVal = f.Body->Accept(*this)){
-    Builder->CreateRet(RetVal);
-    llvm::verifyFunction(*TheFunction);
-
-    // Optimize the function.
-    TheFPM->run(*TheFunction);
-    return TheFunction;
-  }
-
-  TheFunction->eraseFromParent();
-  return nullptr;
-}
-
-llvm::Value* CodeGenVisitor::Visit(NumberExprAST& n){
-  return llvm::ConstantFP::get(*TheContext, llvm::APFloat(n.Val));
-}
-llvm::Value* CodeGenVisitor::Visit(VariableExprAST& v){
-  // Look this variable up in the function.
-  llvm::Value *V = NamedValues[v.Name];
-  if (!V)
-    LogErrorV("Unknown variable name");
-  return V;
-}
-
-llvm::Value* CodeGenVisitor::Visit(BinaryExprAST& b){
-  //llvm::Value *L = b.LHS->codegen();
-  llvm::Value *L = b.LHS->Accept(*this);
-  //llvm::Value *R = b.RHS->codegen();
-  llvm::Value *R = b.RHS->Accept(*this);
-  if (!L || !R)
-    return nullptr;
-
-  switch (b.Op) {
-  case '+':
-    return Builder->CreateFAdd(L, R, "addtmp");
-  case '-':
-    return Builder->CreateFSub(L, R, "subtmp");
-  case '*':
-    return Builder->CreateFMul(L, R, "multmp");
-  case '<':
-    L = Builder->CreateFCmpULT(L, R, "cmptmp");
-    // Convert bool 0/1 to double 0.0 or 1.0
-    return Builder->CreateUIToFP(L, llvm::Type::getDoubleTy(*TheContext),
-                                "booltmp");
-  default:
-    return LogErrorV("invalid binary operator");
-  }
-}
-llvm::Value* CodeGenVisitor::Visit(CallExprAST& c){
-  llvm::Function *CalleeF = getFunction(c.Callee);
-  //llvm::Function *CalleeF = TheModule-> getFunction(Callee);
-  if(!CalleeF) return LogErrorV("Unknown function referenced");
-  if(CalleeF->arg_size() != c.Args.size()) return LogErrorV("Incorrect #arguments passed");
-
-  std::vector<llvm::Value*> ArgsV; 
-  for(unsigned i=0, e=c.Args.size(); i !=e; i++){
-    //ArgsV.push_back( c.Args[i]->codegen() );
-    ArgsV.push_back( c.Args[i]->Accept(*this) );
-    if (!ArgsV.back()) return nullptr;
-  }
-  return Builder->CreateCall(CalleeF, ArgsV, "calltmp");
-}
-
 int main(){
-  llvm::InitializeNativeTarget();
-  llvm::InitializeNativeTargetAsmPrinter();
-  llvm::InitializeNativeTargetAsmParser();
-
   // Install standard binary operators.
   // 1 is lowest precedence.
   BinopPrecedence['<'] = 10;
@@ -597,16 +284,8 @@ int main(){
   fprintf(stderr, "ready> ");
   getNextToken();
   
-  //TheJIT = ExitOnErr(llvm::orc::KaleidoscopeJIT()::Create());
-  TheJIT = std::make_unique<llvm::orc::KaleidoscopeJIT>();
-  InitializeModuleAndPassManager();
 
   MainLoop();
-
-  //while(true){
-  //  int token_id = gettok().type;
-  //  std::cout << "token_id: " << token_id << " str: " << getCurrentToken().IdentifierStr << " val " << CurTok.NumVal << std::endl;
-  //}
 
   return 0;
 }
