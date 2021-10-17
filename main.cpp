@@ -23,7 +23,7 @@
 #include "llvm/Transforms/Scalar/GVN.h"
 
 #include "KaleidoscopeJIT.h"
-
+#include "lexer.hpp"
 
 /*
 global
@@ -39,87 +39,6 @@ static llvm::ExitOnError ExitOnErr;
 // LogError* - These are little helper functions for error handling.
 llvm::Value *LogErrorV(const char *Str);
 llvm::Function *getFunction(std::string Name);
-/******************************
-* Lexer
-*******************************/
-
-// The lexer returns tokens [0-255] if it is an unknown character, otherwise one
-// of these for known things.
-enum TokenType {
-  tok_eof = -1,
-
-  // commands
-  tok_def = -2,
-  tok_extern = -3,
-
-  // primary
-  tok_identifier = -4,
-  tok_number = -5,
-};
-
-struct Token{
-  int type;
-  std::string IdentifierStr; // Filled in if tok_identifier
-  double NumVal;             // Filled in if tok_number
-};
-
-Token gettok() {
-  static int LastChar = ' ';
-  Token tk;
-
-  // Skip any whitespace.
-  while (isspace(LastChar))
-    LastChar = getchar();
-
-  if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
-    tk.IdentifierStr = LastChar;
-    while (isalnum((LastChar = getchar())))
-      tk.IdentifierStr += LastChar;
-
-    if (tk.IdentifierStr == "def"){
-      tk.type = (int)tok_def;
-    } else if (tk.IdentifierStr == "extern"){
-      tk.type = (int)tok_extern;
-    }else{
-      tk.type = (int)tok_identifier;
-    }
-    
-    return tk;
-  }
-
-  if (isdigit(LastChar) || LastChar == '.') {   // Number: [0-9.]+
-    std::string NumStr;
-    do {
-      NumStr += LastChar;
-      LastChar = getchar();
-    } while (isdigit(LastChar) || LastChar == '.');
-
-    tk.NumVal = strtod(NumStr.c_str(), 0);
-    tk.type = (int)::tok_number;
-    return tk;
-  }
-
-  if (LastChar == '#')
-  {
-    // Comment until end of line.
-    do
-      LastChar = getchar();
-    while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
-
-    if (LastChar != EOF) return gettok();
-  }
-  // Check for end of file.  Don't eat the EOF.
-  if (LastChar == EOF){
-    tk.type = (int)::tok_eof;
-    return tk;
-  }
-
-  // Otherwise, just return the character as its ascii value.
-  int ThisChar = LastChar;
-  LastChar = getchar();
-  tk.type = ThisChar;
-  return tk;
-}
 
 static Token CurTok;
 static int getNextToken() {
@@ -198,10 +117,6 @@ llvm::Value *BinaryExprAST::codegen() {
     return LogErrorV("invalid binary operator");
   }
 }
-
-
-
-
 
 // Expression class for function calls.
 class CallExprAST : public ExprAST {
@@ -627,10 +542,10 @@ int main(){
 
   MainLoop();
 
-  while(true){
-    int token_id = gettok().type;
-    std::cout << "token_id: " << token_id << " str: " << CurTok.IdentifierStr << " val " << CurTok.NumVal << std::endl;
-  }
+  //while(true){
+  //  int token_id = gettok().type;
+  //  std::cout << "token_id: " << token_id << " str: " << CurTok.IdentifierStr << " val " << CurTok.NumVal << std::endl;
+  //}
 
   return 0;
 }
