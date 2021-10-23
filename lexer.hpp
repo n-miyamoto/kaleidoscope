@@ -1,5 +1,5 @@
 #pragma once
-#include <string.h>
+#include <string>
 
 // The lexer returns tokens [0-255] if it is an unknown character, otherwise one
 // of these for known things.
@@ -15,11 +15,13 @@ enum TokenType {
   tok_number = -5,
 };
 
-struct Token{
+struct Token {
   int type;
-  std::string IdentifierStr; // Filled in if tok_identifier
-  double NumVal;             // Filled in if tok_number
+  std::string IdentifierStr;  // Filled in if tok_identifier
+  double NumVal;              // Filled in if tok_number
 };
 
-//return Token struct from std input.
+// return Token struct from std input.
 Token gettok();
+int getNextToken();
+Token& getCurrentToken();
