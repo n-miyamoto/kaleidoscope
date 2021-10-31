@@ -18,6 +18,7 @@ class Parser {
                                          std::unique_ptr<ExprAST> LHS);
   std::unique_ptr<PrototypeAST> ParsePrototype();
   std::unique_ptr<ExprAST> ParseExpression();
+  std::unique_ptr<ExprAST> ParseIfExpr();
 
  public:
   Parser();
