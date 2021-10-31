@@ -1,3 +1,5 @@
+#include "parser.hpp"
+
 #include <iostream>
 #include <map>
 #include <memory>
@@ -6,7 +8,6 @@
 #include "codegen.hpp"
 #include "expressions.hpp"
 #include "lexer.hpp"
-#include "parser.hpp"
 
 // logerror* - these are little helper functions for error handling.
 std::unique_ptr<ExprAST> LogError(const char *str) {
@@ -19,7 +20,7 @@ std::unique_ptr<PrototypeAST> LogErrorP(const char *str) {
   return nullptr;
 }
 
-Parser::Parser(){
+Parser::Parser() {
   // Install standard binary operators.
   // 1 is lowest precedence.
   BinopPrecedence['<'] = 10;
@@ -103,7 +104,7 @@ int Parser::GetTokPrecedence() {
 }
 // parse binary operator
 std::unique_ptr<ExprAST> Parser::ParseBinOpRHS(int ExprPrec,
-                                              std::unique_ptr<ExprAST> LHS) {
+                                               std::unique_ptr<ExprAST> LHS) {
   while (1) {
     int TokPrec = GetTokPrecedence();
 
@@ -180,4 +181,3 @@ std::unique_ptr<PrototypeAST> Parser::ParseExtern() {
   getNextToken();
   return ParsePrototype();
 }
-

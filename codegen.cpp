@@ -40,6 +40,9 @@ void CodeGenVisitor::InitializeModuleAndPassManager() {
   TheModule = std::make_unique<llvm::Module>("my cool jit", *TheContext);
   TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
 
+  // Create a new builder for the module.
+  Builder = std::make_unique<llvm::IRBuilder<>>(*TheContext);
+
   // Create a new pass manager
   TheFPM = std::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get());
   // add path
@@ -49,9 +52,6 @@ void CodeGenVisitor::InitializeModuleAndPassManager() {
   TheFPM->add(llvm::createCFGSimplificationPass());
 
   TheFPM->doInitialization();
-
-  // Create a new builder for the module.
-  Builder = std::make_unique<llvm::IRBuilder<>>(*TheContext);
 }
 
 llvm::Function *CodeGenVisitor::getFunction(std::string Name) {
