@@ -174,3 +174,133 @@ llvm::Value *CodeGenVisitor::Visit(CallExprAST &c) {
   }
   return Builder->CreateCall(CalleeF, ArgsV, "calltmp");
 }
+
+llvm::Value *CodeGenVisitor::Visit(IfExprAST &i) {
+  llvm::Value *CondV = i.Cond->Accept(*this);
+  if (!CondV) return nullptr;
+
+  // Convert condition to a bool by comparing non-equal to 0.0.
+  CondV = Builder->CreateFCmpONE(
+      CondV, llvm::ConstantFP::get(*TheContext, llvm::APFloat(0.0)), "ifcond");
+  llvm::Function *TheFunction = Builder->GetInsertBlock()->getParent();
+
+  // Create blocks for the then and else cases.  Insert the 'then' block at the
+  // end of the function.
+  llvm::BasicBlock *ThenBB =
+      llvm::BasicBlock::Create(*TheContext, "then", TheFunction);
+  llvm::BasicBlock *ElseBB = llvm::BasicBlock::Create(*TheContext, "else");
+  llvm::BasicBlock *MergeBB = llvm::BasicBlock::Create(*TheContext, "ifcont");
+
+  Builder->CreateCondBr(CondV, ThenBB, ElseBB);
+
+  // Emit then value.
+  Builder->SetInsertPoint(ThenBB);
+
+  llvm::Value *ThenV = i.Then->Accept(*this);
+  if (!ThenV) return nullptr;
+
+  Builder->CreateBr(MergeBB);
+  // Codegen of 'Then' can change the current block, update ThenBB for the PHI.
+  ThenBB = Builder->GetInsertBlock();
+
+  // Emit else block.
+  TheFunction->getBasicBlockList().push_back(ElseBB);
+  Builder->SetInsertPoint(ElseBB);
+
+  llvm::Value *ElseV = i.Else->Accept(*this);
+  if (!ElseV) return nullptr;
+
+  Builder->CreateBr(MergeBB);
+  // codegen of 'Else' can change the current block, update ElseBB for the PHI.
+  ElseBB = Builder->GetInsertBlock();
+
+  // Emit merge block.
+  TheFunction->getBasicBlockList().push_back(MergeBB);
+  Builder->SetInsertPoint(MergeBB);
+  llvm::PHINode *PN =
+      Builder->CreatePHI(llvm::Type::getDoubleTy(*TheContext), 2, "iftmp");
+
+  PN->addIncoming(ThenV, ThenBB);
+  PN->addIncoming(ElseV, ElseBB);
+  return PN;
+
+  return nullptr;
+}
+
+llvm::Value *CodeGenVisitor::Visit(ForExprAST &f) {
+  // Emit the start code first, without 'variable' in scope.
+  llvm::Value *StartVal = f.Start->Accept(*this);
+  if (!StartVal) return nullptr;
+
+  // Make the new basic block for the loop header, inserting after current
+  // block.
+  llvm::Function *TheFunction = Builder->GetInsertBlock()->getParent();
+  llvm::BasicBlock *PreheaderBB = Builder->GetInsertBlock();
+  llvm::BasicBlock *LoopBB =
+      llvm::BasicBlock::Create(*TheContext, "loop", TheFunction);
+
+  // Insert an explicit fall through from the current block to the LoopBB.
+  Builder->CreateBr(LoopBB);
+
+  // Start insertion in LoopBB.
+  Builder->SetInsertPoint(LoopBB);
+
+  // Start the PHI node with an entry for Start.
+  llvm::PHINode *Variable = Builder->CreatePHI(
+      llvm::Type::getDoubleTy(*TheContext), 2, f.VarName.c_str());
+  Variable->addIncoming(StartVal, PreheaderBB);
+
+  // Within the loop, the variable is defined equal to the PHI node.  If it
+  // shadows an existing variable, we have to restore it, so save it now.
+  llvm::Value *OldVal = NamedValues[f.VarName];
+  NamedValues[f.VarName] = Variable;
+
+  // Emit the body of the loop.  This, like any other expr, can change the
+  // current BB.  Note that we ignore the value computed by the body, but don't
+  // allow an error.
+  if (!f.Body->Accept(*this)) return nullptr;
+
+  // Emit the step value.
+  llvm::Value *StepVal = nullptr;
+  if (f.Step) {
+    StepVal = f.Step->Accept(*this);
+    if (!StepVal) return nullptr;
+  } else {
+    // If not specified, use 1.0.
+    StepVal = llvm::ConstantFP::get(*TheContext, llvm::APFloat(1.0));
+  }
+
+  llvm::Value *NextVar = Builder->CreateFAdd(Variable, StepVal, "nextvar");
+
+  // Compute the end condition.
+  llvm::Value *EndCond = f.End->Accept(*this);
+  if (!EndCond) return nullptr;
+
+  // Convert condition to a bool by comparing non-equal to 0.0.
+  EndCond = Builder->CreateFCmpONE(
+      EndCond, llvm::ConstantFP::get(*TheContext, llvm::APFloat(0.0)),
+      "loopcond");
+
+  // Create the "after loop" block and insert it.
+  llvm::BasicBlock *LoopEndBB = Builder->GetInsertBlock();
+  llvm::BasicBlock *AfterBB =
+      llvm::BasicBlock::Create(*TheContext, "afterloop", TheFunction);
+
+  // Insert the conditional branch into the end of LoopEndBB.
+  Builder->CreateCondBr(EndCond, LoopBB, AfterBB);
+
+  // Any new code will be inserted in AfterBB.
+  Builder->SetInsertPoint(AfterBB);
+
+  // Add a new entry to the PHI node for the backedge.
+  Variable->addIncoming(NextVar, LoopEndBB);
+
+  // Restore the unshadowed variable.
+  if (OldVal)
+    NamedValues[f.VarName] = OldVal;
+  else
+    NamedValues.erase(f.VarName);
+
+  // for expr always returns 0.0.
+  return llvm::Constant::getNullValue(llvm::Type::getDoubleTy(*TheContext));
+}

@@ -23,6 +23,16 @@ Token gettok() {
       tk.type = (int)tok_def;
     } else if (tk.IdentifierStr == "extern") {
       tk.type = (int)tok_extern;
+    } else if (tk.IdentifierStr == "if") {
+      tk.type = (int)tok_if;
+    } else if (tk.IdentifierStr == "then") {
+      tk.type = (int)tok_then;
+    } else if (tk.IdentifierStr == "else") {
+      tk.type = (int)tok_else;
+    } else if (tk.IdentifierStr == "for") {
+      tk.type = (int)tok_for;
+    } else if (tk.IdentifierStr == "in") {
+      tk.type = (int)tok_in;
     } else {
       tk.type = (int)tok_identifier;
     }

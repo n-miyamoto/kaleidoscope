@@ -8,6 +8,10 @@ llvm::Value* VariableExprAST::Accept(CodeGenVisitor& v) {
 
 llvm::Value* BinaryExprAST::Accept(CodeGenVisitor& v) { return v.Visit(*this); }
 
+llvm::Value* IfExprAST::Accept(CodeGenVisitor& v) { return v.Visit(*this); }
+
+llvm::Value* ForExprAST::Accept(CodeGenVisitor& v) { return v.Visit(*this); }
+
 llvm::Value* CallExprAST::Accept(CodeGenVisitor& v) { return v.Visit(*this); }
 
 llvm::Function* PrototypeAST::Accept(CodeGenVisitor& v) {

@@ -14,6 +14,8 @@ class NumberExprAST;
 class VariableExprAST;
 class BinaryExprAST;
 class CallExprAST;
+class IfExprAST;
+class ForExprAST;
 class FunctionAST;
 class PrototypeAST;
 
@@ -34,6 +36,8 @@ class CodeGenVisitor {
   llvm::Value* Visit(VariableExprAST&);
   llvm::Value* Visit(BinaryExprAST&);
   llvm::Value* Visit(CallExprAST&);
+  llvm::Value* Visit(IfExprAST&);
+  llvm::Value* Visit(ForExprAST&);
   llvm::Function* Visit(PrototypeAST&);
   llvm::Function* Visit(FunctionAST&);
 
