@@ -29,6 +29,10 @@ Token gettok() {
       tk.type = (int)tok_then;
     } else if (tk.IdentifierStr == "else") {
       tk.type = (int)tok_else;
+    } else if (tk.IdentifierStr == "for") {
+      tk.type = (int)tok_for;
+    } else if (tk.IdentifierStr == "in") {
+      tk.type = (int)tok_in;
     } else {
       tk.type = (int)tok_identifier;
     }
