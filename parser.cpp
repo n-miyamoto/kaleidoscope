@@ -81,7 +81,6 @@ std::unique_ptr<ExprAST> Parser::ParseIdentifierExpr() {
 // parse primary expression
 // identifier expression, number expression and parent expression
 std::unique_ptr<ExprAST> Parser::ParsePrimary() {
-
   switch (getCurrentToken().type) {
     default:
       return LogError("unknown token when expecting an expression");
@@ -191,27 +190,23 @@ std::unique_ptr<ExprAST> Parser::ParseIfExpr() {
 
   // condition.
   auto Cond = ParseExpression();
-  if (!Cond){
+  if (!Cond) {
     return nullptr;
   }
 
-  if (getCurrentToken().type!= tok_then)
-    return LogError("expected then");
+  if (getCurrentToken().type != tok_then) return LogError("expected then");
   getNextToken();  // eat the then
 
   auto Then = ParseExpression();
-  if (!Then)
-    return nullptr;
+  if (!Then) return nullptr;
 
-  if (getCurrentToken().type != tok_else)
-    return LogError("expected else");
+  if (getCurrentToken().type != tok_else) return LogError("expected else");
 
   getNextToken();
 
   auto Else = ParseExpression();
-  if (!Else)
-    return nullptr;
+  if (!Else) return nullptr;
 
   return std::make_unique<IfExprAST>(std::move(Cond), std::move(Then),
-                                      std::move(Else));
+                                     std::move(Else));
 }

@@ -38,12 +38,12 @@ class BinaryExprAST : public ExprAST {
 
 /// IfExprAST - Expression class for if/then/else.
 class IfExprAST : public ExprAST {
-public:
+ public:
   std::unique_ptr<ExprAST> Cond, Then, Else;
   virtual llvm::Value *Accept(CodeGenVisitor &);
   IfExprAST(std::unique_ptr<ExprAST> Cond, std::unique_ptr<ExprAST> Then,
             std::unique_ptr<ExprAST> Else)
-    : Cond(std::move(Cond)), Then(std::move(Then)), Else(std::move(Else)) {}
+      : Cond(std::move(Cond)), Then(std::move(Then)), Else(std::move(Else)) {}
 };
 
 // Expression class for function calls.
@@ -82,4 +82,3 @@ class FunctionAST {
               std::unique_ptr<ExprAST> Body)
       : Proto(std::move(Proto)), Body(std::move(Body)) {}
 };
-

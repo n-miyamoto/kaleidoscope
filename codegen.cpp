@@ -177,8 +177,7 @@ llvm::Value *CodeGenVisitor::Visit(CallExprAST &c) {
 
 llvm::Value *CodeGenVisitor::Visit(IfExprAST &i) {
   llvm::Value *CondV = i.Cond->Accept(*this);
-  if (!CondV)
-    return nullptr;
+  if (!CondV) return nullptr;
 
   // Convert condition to a bool by comparing non-equal to 0.0.
   CondV = Builder->CreateFCmpONE(
@@ -198,8 +197,7 @@ llvm::Value *CodeGenVisitor::Visit(IfExprAST &i) {
   Builder->SetInsertPoint(ThenBB);
 
   llvm::Value *ThenV = i.Then->Accept(*this);
-  if (!ThenV)
-    return nullptr;
+  if (!ThenV) return nullptr;
 
   Builder->CreateBr(MergeBB);
   // Codegen of 'Then' can change the current block, update ThenBB for the PHI.
@@ -209,19 +207,18 @@ llvm::Value *CodeGenVisitor::Visit(IfExprAST &i) {
   TheFunction->getBasicBlockList().push_back(ElseBB);
   Builder->SetInsertPoint(ElseBB);
 
-  llvm::Value *ElseV = i.Else->Accept(*this); 
-  if (!ElseV)
-    return nullptr;
+  llvm::Value *ElseV = i.Else->Accept(*this);
+  if (!ElseV) return nullptr;
 
   Builder->CreateBr(MergeBB);
   // codegen of 'Else' can change the current block, update ElseBB for the PHI.
   ElseBB = Builder->GetInsertBlock();
 
-    // Emit merge block.
+  // Emit merge block.
   TheFunction->getBasicBlockList().push_back(MergeBB);
   Builder->SetInsertPoint(MergeBB);
   llvm::PHINode *PN =
-    Builder->CreatePHI(llvm::Type::getDoubleTy(*TheContext), 2, "iftmp");
+      Builder->CreatePHI(llvm::Type::getDoubleTy(*TheContext), 2, "iftmp");
 
   PN->addIncoming(ThenV, ThenBB);
   PN->addIncoming(ElseV, ElseBB);
