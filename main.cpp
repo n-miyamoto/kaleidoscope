@@ -16,7 +16,6 @@
 CodeGenVisitor codegen;
 Parser parser;
 
-
 static void HandleDefinition() {
   if (auto FnAst = parser.ParseDefinition()) {
     fprintf(stderr, "Parsed a function definition.\n");
