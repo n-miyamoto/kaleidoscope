@@ -230,14 +230,14 @@ llvm::Value *CodeGenVisitor::Visit(IfExprAST &i) {
 llvm::Value *CodeGenVisitor::Visit(ForExprAST &f) {
   // Emit the start code first, without 'variable' in scope.
   llvm::Value *StartVal = f.Start->Accept(*this);
-  if (!StartVal)
-    return nullptr;
+  if (!StartVal) return nullptr;
 
   // Make the new basic block for the loop header, inserting after current
   // block.
   llvm::Function *TheFunction = Builder->GetInsertBlock()->getParent();
   llvm::BasicBlock *PreheaderBB = Builder->GetInsertBlock();
-  llvm::BasicBlock *LoopBB = llvm::BasicBlock::Create(*TheContext, "loop", TheFunction);
+  llvm::BasicBlock *LoopBB =
+      llvm::BasicBlock::Create(*TheContext, "loop", TheFunction);
 
   // Insert an explicit fall through from the current block to the LoopBB.
   Builder->CreateBr(LoopBB);
@@ -246,7 +246,8 @@ llvm::Value *CodeGenVisitor::Visit(ForExprAST &f) {
   Builder->SetInsertPoint(LoopBB);
 
   // Start the PHI node with an entry for Start.
-  llvm::PHINode *Variable = Builder->CreatePHI(llvm::Type::getDoubleTy(*TheContext), 2, f.VarName.c_str());
+  llvm::PHINode *Variable = Builder->CreatePHI(
+      llvm::Type::getDoubleTy(*TheContext), 2, f.VarName.c_str());
   Variable->addIncoming(StartVal, PreheaderBB);
 
   // Within the loop, the variable is defined equal to the PHI node.  If it
@@ -257,15 +258,13 @@ llvm::Value *CodeGenVisitor::Visit(ForExprAST &f) {
   // Emit the body of the loop.  This, like any other expr, can change the
   // current BB.  Note that we ignore the value computed by the body, but don't
   // allow an error.
-  if (!f.Body->Accept(*this))
-    return nullptr;
+  if (!f.Body->Accept(*this)) return nullptr;
 
   // Emit the step value.
   llvm::Value *StepVal = nullptr;
   if (f.Step) {
     StepVal = f.Step->Accept(*this);
-    if (!StepVal)
-      return nullptr;
+    if (!StepVal) return nullptr;
   } else {
     // If not specified, use 1.0.
     StepVal = llvm::ConstantFP::get(*TheContext, llvm::APFloat(1.0));
@@ -275,16 +274,17 @@ llvm::Value *CodeGenVisitor::Visit(ForExprAST &f) {
 
   // Compute the end condition.
   llvm::Value *EndCond = f.End->Accept(*this);
-  if (!EndCond)
-    return nullptr;
+  if (!EndCond) return nullptr;
 
   // Convert condition to a bool by comparing non-equal to 0.0.
   EndCond = Builder->CreateFCmpONE(
-      EndCond, llvm::ConstantFP::get(*TheContext, llvm::APFloat(0.0)), "loopcond");
+      EndCond, llvm::ConstantFP::get(*TheContext, llvm::APFloat(0.0)),
+      "loopcond");
 
   // Create the "after loop" block and insert it.
   llvm::BasicBlock *LoopEndBB = Builder->GetInsertBlock();
-  llvm::BasicBlock *AfterBB = llvm::BasicBlock::Create(*TheContext, "afterloop", TheFunction);
+  llvm::BasicBlock *AfterBB =
+      llvm::BasicBlock::Create(*TheContext, "afterloop", TheFunction);
 
   // Insert the conditional branch into the end of LoopEndBB.
   Builder->CreateCondBr(EndCond, LoopBB, AfterBB);

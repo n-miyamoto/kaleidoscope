@@ -225,23 +225,19 @@ std::unique_ptr<ExprAST> Parser::ParseForExpr() {
   getNextToken();  // eat identifier.
   CurTok = getCurrentToken();
 
-  if (CurTok.type != '=')
-    return LogError("expected '=' after for");
+  if (CurTok.type != '=') return LogError("expected '=' after for");
   getNextToken();  // eat '='.
 
   auto Start = ParseExpression();
-  if (!Start)
-    return nullptr;
+  if (!Start) return nullptr;
 
   CurTok = getCurrentToken();
-  if (CurTok.type != ',')
-    return LogError("expected ',' after for start value");
+  if (CurTok.type != ',') return LogError("expected ',' after for start value");
 
   getNextToken();
 
   auto End = ParseExpression();
-  if (!End)
-    return nullptr;
+  if (!End) return nullptr;
 
   // The step value is optional.
   std::unique_ptr<ExprAST> Step;
@@ -249,21 +245,16 @@ std::unique_ptr<ExprAST> Parser::ParseForExpr() {
   if (CurTok.type == ',') {
     getNextToken();
     Step = ParseExpression();
-    if (!Step)
-      return nullptr;
+    if (!Step) return nullptr;
   }
 
-
   CurTok = getCurrentToken();
-  if (CurTok.type != tok_in)
-    return LogError("expected 'in' after for");
+  if (CurTok.type != tok_in) return LogError("expected 'in' after for");
   getNextToken();  // eat 'in'.
 
   auto Body = ParseExpression();
-  if (!Body)
-    return nullptr;
+  if (!Body) return nullptr;
 
-  return std::make_unique<ForExprAST>(IdName, std::move(Start),
-                                       std::move(End), std::move(Step),
-                                       std::move(Body));
+  return std::make_unique<ForExprAST>(IdName, std::move(Start), std::move(End),
+                                      std::move(Step), std::move(Body));
 }
