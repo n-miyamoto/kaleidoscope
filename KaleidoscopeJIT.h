@@ -70,6 +70,7 @@ public:
   void removeModule(VModuleKey K) {
     ModuleKeys.erase(find(ModuleKeys, K));
     cantFail(CompileLayer.removeModule(K));
+    ES.releaseVModule(K);
   }
 
   JITSymbol findSymbol(const std::string Name) {

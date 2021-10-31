@@ -65,8 +65,8 @@ class PrototypeAST {
 // This class represents a function definition itself.
 class FunctionAST {
  public:
-  std::unique_ptr<ExprAST> Body;
   std::unique_ptr<PrototypeAST> Proto;
+  std::unique_ptr<ExprAST> Body;
   llvm::Function *Accept(CodeGenVisitor &);
   FunctionAST(std::unique_ptr<PrototypeAST> Proto,
               std::unique_ptr<ExprAST> Body)
